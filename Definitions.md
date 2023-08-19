@@ -100,6 +100,8 @@ Type objects are the workhorse of Meta Types, but the meta type get all the cred
 
 I said earlier that **a meta type is the type of a type object**. It’s like a template that some type objects match and others don’t. The template uses a combination of structure and several different types of constraints. It’s like a higher-order object type, but being higher-order lets it be much more expressive.
 
+Many Meta Types directly correspond to generic signatures with type constraints, but generalize and extend them using additional constraints. Meta Types represent the types of both flat type obects
+
 Meta types can declare one of the following constraints:
 
 1. Subtype constraints
@@ -156,7 +158,7 @@ On the other hand, the following aren’t instances of it:
 // Syntax error    
     
 { Sth: string }
-// What? This is a data type.
+// This is a data type.
 // ! COUNTER-EXAMPLES !
 ```
 
@@ -202,7 +204,7 @@ We can do the opposite true:
 
 That’s a contradiction. It doesn’t break the language or something – it just means that this type has no instances, and thus is equivalent to `never`.
 
-These examples are odd, but type checking is already [undecidable](https://github.com/microsoft/TypeScript/issues/14833) due to other factors. Being able to phrase contradictions and strange self-references is the cost of a powerful type system.
+In practice, we still want to avoid degenerate cases like these, as they are probably bugs and cause issues for users. Luckily, TypeScript already includes a system for avoiding meaningless cyclical constraints.
 
 ### Meta type annotations
 
@@ -246,33 +248,83 @@ Here are some non-instances:
 
 ### Equivalence constraint
 
-The equivalence constraint is, in some ways, the trickiest one. It’s also extremely useful. It works for both data type and type object variables, 
+The equivalence constraint is, in some ways, the trickiest one. This constraint can apply to both type object members and type members. 
+
+The simplest way to use this constraint looks like this:
 
 ```typescript
 // This is both a type object and a meta type
 // Just like {a: "x"} is both a value and a type.
 < A := string >
+< A := string; B := number >
 ```
 
-It uses exactly the same syntax as type objects, and this is deliberate. 
+It uses a syntax that’s very similar to type objects. That’s because it’s the meta equivalent of the relationship between the type `{a: 5}` and the value `{a: 5}`. They will always occur at different positions, so the language will never be confused about which one we mean, and there is a close correspondence between them.
 
-This is the meta type equivalent of the relationship between the type `5` and the value `5`. They will always occur at different positions, so the compiler will never be confused about which one we mean, and there is a close correspondence between them.
+That’s a silly example, though. Like other constraints, equivalence constraints can reference other type variables, and this is where they can truly shine. Here is an example:
 
-Equivalence constraints only work like that if they don’t reference any variables, and this is exactly where the two concepts diverge. Here is an example of something pretty cool:
-
-```typescript
-type type Example = < 
-    Input extends unknown
-    Func := (x: Input) => Input
+```
+<
+	X extends unknown
+	Predicate := (x: X) => boolean
 >
 ```
+
+While equivalence constraints don’t seem to make much sense, they are primarily used to define aliases and associated types. The trick is that **type object inference** is used 
+
+Let’s take a look at the instances of that meta type.
+
+```typescript
+< Input := string, Predicate := (x: string) => string >
+< Input := number, Predicate := (x: number) => number >
+< Input := "abc",  Predicate := (x: "abc") => "abc" >
+```
+
+That’s incredibly uniform. So uniform, in fact, that you could imagine not needing to specify `Func` at all and have inference figure it out. And this is exactly what happens during type object inference, which allows you to specify only some of the variables.
+
+In fact, equivalence constraints are strictly constructive in a sense – 
+
+Equivalence constraints only work like that if they don’t reference any variables, and this is exactly where the two concepts diverge. 
+
+```typescript
+<
+	Input extends unknown
+	Predicate := (x: Input) => boolean
+>
+```
+
+In spite of that,   
+
+```typescript
+< Input := string, Predicate := (x: string) => string >
+< Input := number, Predicate := (x: number) => number >
+< Input := "abc",  Predicate := (x: "abc") => "abc" >
+```
+
+
+
+
+
+```typescript
+< Stack := { next: Stack | null } >
+```
+
+Or you could even write:
+
+```typescript
+< Liar := Liar extends true ? false : true >
+```
+
+This shows that the equivalence constraint is, in fact, still a constraint. Special cases like `< x := string >` aside, it’s non-constructive and can still result in a contradiction. 
+
+From this example, we can see that the equivalence example is a constraint.
 
 Here we can see that the equivalence constraint is truly a constraint, rather than some kind of constant. `Example.Func` corresponds to different types in different instances of `Example`. Look at these, for example:
 
 ```typescript
-< Input := string, Func := (x: string) => string >
-< Input := number, Func := (x: number) => number >
-< Input := "abc",  Func := (x: "abc") => "abc" >
+< Input := string, Predicate := (x: string) => string >
+< Input := number, Predicate := (x: number) => number >
+< Input  := "abc",  Predicate := (x: "abc") => "abc" >
 ```
 
 That’s incredibly uniform. So uniform, in fact, that you could imagine not needing to specify `Func` at all and have inference figure it out. 
@@ -281,8 +333,6 @@ We’ll come back to that later, but remember that the equivalence constraint is
 
 ```
 type Invariant<T> = T extends { hello: string } ? true : false
-
-
 ```
 
 
