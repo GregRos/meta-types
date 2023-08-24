@@ -1,4 +1,4 @@
-# 1 Definitions
+# 1 Basics
 
 ## Meta objects
 
@@ -321,7 +321,7 @@ So meta types actually have two ways of constraining their members, while regula
 > It might look something like this:
 >
 > ```
-> // This isn't real  or proposed here
+> // This isn't real or proposed here
 > type A = {
 > 	foo must|x -> x > 10|
 > }
@@ -369,7 +369,9 @@ It’s possible to write contradictory or tautological constraints. Although ide
 
 > #### *The abyss*
 >
-> We could pretend we’re satisfied with what I just said, or we could venture into the abyss. The abyss is the alternative universe where we *don’t* try to limit cycles at all. After all, what are types but predicates over a universe of values? And what right do *we*, as humans, have to police the world of well-formed predicates?
+> We could pretend we’re satisfied with what I just said, or we could venture into the abyss. 
+>
+> The abyss is the alternative universe where we *don’t* try to limit cycles at all. After all, what are types but predicates over a universe of values? And what right do *we*, as humans, have to police the world of well-formed predicates?
 >
 > In the abyss, we might meet strange denizens:
 >
@@ -379,7 +381,7 @@ It’s possible to write contradictory or tautological constraints. Although ide
 > < One extends TheOther, TheOther extends One >
 > ```
 >
-> But shouldn’t we strive to accept all types, even should their forms prove monstrous to us? 
+> But shouldn’t we strive to accept all types, even if their forms prove monstrous to us? 
 >
 
 ## Using meta types from normal code
@@ -417,11 +419,39 @@ This makes sure the namespace declares the appropriate types.
 
 ### Via modules
 
-This is inspired by #420. Module exports can also be meta annotated as part of a module-wide `implements`-like clause. This was never actually implemented, but it would be as part of this proposal.
+This is inspired by #420. Module exports can also be meta annotated as part of a module-wide `implements`-like clause. This was never actually implemented, but at least the meta annotation component should be implemented.
 
 ```typescript
 export: Foo
 ```
+
+## Inference – doing it and controlling it
+
+Meta types can potentially allow users to partially specify a generic instantiation and have inference complete it. Let’s examine such a situation.
+
+Say we have a generic function as discussed earlier, but we only specify one of the type parameters:
+
+```
+generic<A := string>()
+```
+
+Under the lens of the meta type system, these kinds of problems become meta type checking problems. We have a meta object `< A := string >` and a meta type `<A: type, B: type>`. The meta object isn’t an instance of the meta type, so instead we assume the user wants us to construct an instance via inference.
+
+`A := string` is already specified, so the meta type is narrowed to `<A := string, B: type>`. If we pick the broadest type for `B`, we get `<A := string, B := unknown>`, which is a valid assignment.
+
+We can use similar logic for more complex inference, but the problem of constructing a meta object instance of a meta type is probably undecidable, so sometimes inference will fail.
+
+We can also have special ways to communicate with the inference process, from the point of view of the API designer – the user who defines the meta type. One method that already exists for doing this is default type parameters:
+
+```
+<
+	A: type = string
+>
+```
+
+The `=` symbol here is used to communicate to the inference process, instead of being type information. It’s kind of similar to a decorator.
+
+If you use a default value, you can omit the `: type` annotation because it can be inferred.
 
 ## Implicit structure
 
@@ -467,16 +497,16 @@ These look just like meta objects! And that’s because this is the equivalent o
 
 ### Needs more exploration
 
-I’m not exactly sure how the implicit structure is applied and how it would work in different situations. 
-
-What I originally had was an equivalence constraint combined with type inference. That acted in broadly the same way, but I quickly realized it’s actually one of the most important features of meta types, and it should be phrased that way.
-
-Some of the potential issues are:
+I’m not exactly sure how the implicit structure is applied and how it would work in different situations. Some of the potential issues are:
 
 * What happens if you have two meta types with different implicit structure but the same explicit structure?
 * Does a meta object actually get the structure, or is it more like an extension method type of deal?
 
-When it was an equivalence constraint, inference would just try to construct the type based on its definition at the point of call – or fail to do so, which would probably result in an instantiation error. I’m not sure if that’s the best way though. 
+However, this is actually not how I originally envisioned this feature — it used to work as an equivalence constraint together with meta object inference. The burden of constructing the necessary structure would always fall on instantiation, which should be able to use the constraining expression together with assigning what we call non-implicit structure.
+
+Of course it could also fail to construct the instance and error. 
+
+I’m not sure if basing a feature like this on inference is the best way, but let’s just assume this is how it works until we have something better.
 
 ## Shorthands
 
@@ -501,46 +531,6 @@ The usage of `:=` suggests that this isn’t how type parameters are normally tr
 
 In this situation, the order of the parameters can’t matter as we’re treating them as members of a meta object.
 
-## Inference – doing it and controlling it
-
-Meta types can potentially allow users to partially specify a generic instantiation and have inference complete it. Let’s examine such a situation.
-
-Say we have a generic function as discussed earlier, but we only specify one of the type parameters:
-
-```
-generic<A := string>()
-```
-
-Under the lens of the meta type system, these kinds of problems become meta type checking problems. We have a meta object `< A := string >` and a meta type `<A: type, B: type>`. The meta object isn’t an instance of the meta type, so instead we assume the user wants us to construct an instance via inference.
-
-`A := string` is already specified, so the meta type is narrowed to `<A := string, B: type>`. If we pick the broadest type for `B`, we get `<A := string, B := unknown>`, which is a valid assignment.
-
-We can use similar logic for more complex inference, but the problem of constructing a meta object instance of a meta type is probably undecidable, so sometimes inference will fail.
-
-We can also have special ways to communicate with the inference process, from the point of view of the API designer – the user who defines the meta type. One method that already exists for doing this is default type parameters:
-
-```
-<
-	A: type = string
->
-```
-
-The `=` symbol here is used to communicate to the inference process, instead of being type information. It’s kind of similar to a decorator. So we could put instructions there, rather than types:
-
-```
-<
-	// Pick the narrowest type
-	A extends unknown = @narrow
->
-
-<
-	// Never infer
-	A extends unknown = @never
->
-```
-
-Since these are reusable structural entities, the user can define these inference rules once and use them repeatedly in different contexts.
-
 ## Operators and Operations
 
 There are a few operations we can define on meta types and meta objects. 
@@ -549,7 +539,7 @@ There are a few operations we can define on meta types and meta objects.
 
 Meta objects are value-like constructions in the world of types, and as such support value-like operators.
 
-#### Combination
+#### Combination ✨
 
 This is a spread operator for meta objects, but it applies recursively (in contrast to the JS version). It’s similar to `&` in behavior, but meta objects aren’t types.
 
@@ -566,7 +556,31 @@ meta object Three := <
 >
 ```
 
-Objects must not have conflicting members, as this breaks them.
+An interesting case happens if the two have conflicting structures.
+
+```
+meta object One := < A := number >
+meta object Two := < A := string >
+meta object Three := <
+	...One,
+	...Two
+>
+```
+
+From a purist perspective, we might want this to be illegal. After all, then you can say that `{…X, …Y}` always has the structure of both. 
+
+However, if we let the operator behave like the JavaScript equivalent, we would have a powerful method of switching out specific types with other types in a meta object:
+
+```typescript
+meta type Func := <
+    In: type
+    Out: type
+    Call := (x: A) => Out
+>
+type SwitchTheOut<F: Func, Out> := <...F, Out := string>.Call
+```
+
+
 
 ### Meta types
 
@@ -626,3 +640,12 @@ If the subtypes have different constraints on some member, the constraints can s
 
 When this happens, the result is always `never`, though in practice it would probably just be an error. 
 
+However, this is different:
+
+```
+meta type Both = string & < A: type >
+
+function blah<X: Both>(x: X) {}
+```
+
+This situation is intriguing and I have conflicting thoughts about whether it should work and how it would act.

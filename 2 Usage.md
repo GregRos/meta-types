@@ -1,5 +1,128 @@
 # Other feature requests
 
+###   TanStack
+
+```
+export meta type Functions := <
+	FQueryKey extends QueryKey
+	GetPreviousPage := (...) => unknown
+	
+
+// Identify common type parameters
+// Identify derived types from these parameters. For example:
+export meta type Result := <
+	Data: type
+	Error: type
+	Base := {
+		// Put QueryObserverBaseResult<...> here
+	}
+	Loading := Base & {
+		// Put QueryObserverLoadingResult<...> here
+	}
+	// ... all the other SomethingResults.
+>
+
+// If there are other result types with more parameters
+// Use conjunction
+export meta type MutationObserverResult := Result & <
+	// These are extra parameters:
+	Variables = void
+	Context: type
+	
+	// Here you can access both Result and this meta type
+	Base := {
+		// ... base result goes here
+	}
+>
+	
+
+// The Query types have a superset of parameters
+// Including those of the Results, so we use composition.
+// You can access the different results via Result.Loading etc
+export meta type Query := <
+	QueryFnData: type
+	// Composition using the Result meta type:
+	Result: Result
+	QueryKey extends QueryKey
+	QueryData: type = QueryFnData
+	
+	Options := {
+		// Put QueryOptions<...> here
+	}
+	
+	ObserverOptions := Options & {
+		// Put QueryObserverOptions<...> here
+	}
+	
+	
+>
+
+declare function useQuery<Q: UseQuery>
+```
+
+
+
+## Zod
+
+```
+export interface ZodTypeDef {
+  errorMap?: ZodErrorMap;
+  description?: string;
+}
+
+export meta type ZodObjectDef := <
+	T extends ZodRawShape
+	UnknownKeys extends ZodTypeAny = ZodTypeAny
+	Catchall extends ZodTypeAny = ZodTypeAny
+	Output = 
+
+export meta type ZodType := <
+	Output: type = any
+	Def extends ZodTypeDef
+	
+	
+1
+export class ZodArray<T:ZodCore, Cardinality = "many"> {
+	
+}
+
+export meta type ZodInOut := <
+	Output = any
+	Def: ZodTypeDef
+	Input = Output
+>
+
+export class ZodType<Z: ZodInOut> {
+	
+}
+
+export meta object ZodString := <
+	
+
+export class ZodString extends ZodType<>
+
+
+
+
+
+export meta type Zod := <
+	Output: type = any
+	Def extends ZodTypeDef
+	UnknownKeys extends UnknownKeysParam
+	Catchall extends ZodTypeAny = ZodTypeAny
+	Input: type = any
+	Object := {
+		// You would implement
+	}
+	
+```
+
+
+
+
+
+
+
 So due to the large number of
 
 ## Named/keyed type parameters
