@@ -133,7 +133,7 @@ Once again, meta types are described using an expression that can be bound to na
 Here is an example of a simple meta type, along with one of its instances.
 
 ```typescript
-meta type Metatype = <
+meta type Metatype := <
     // AnyType must be a data type
 	AnyType extends unknown;
 	// AnyString must be a subtype of string
@@ -155,7 +155,7 @@ So let’s unpack the important parts. First, notice that every member variable 
 However, because we’re one level up, we can have two sorts of members in our meta type: type variables and meta object variables. Meta object variables describe other meta objects. So meta types can be nested just like object types.
 
 ```typescript
-meta type HasTypeObjectMember = <
+meta type HasTypeObjectMember := <
 	//      ↓ you don't have to declare meta types
 	Nested: < 
 		Inner extends unknown 
@@ -172,7 +172,7 @@ meta object Instance: HasTypeObjectMember = <
 But that’s not all! We can also have an equivalence constraint. This works for meta object variables as well as for type variables.
 
 ```typescript
-meta type HasEqConstraints = <
+meta type HasEqConstraints := <
 	InputType extends unknown
 	ArrayOfIt := InputType[]
 	FuncOfIt := (x: InputType) => InputType
@@ -341,7 +341,7 @@ restParam<number, string>(null!)
 Meta types can be given as an expression or declared. A meta type declaration looks like this:
 
 ```typescript
-meta type MetaType = <
+meta type MetaType := <
     A extends unknown
     B extends string
     C: OtherMetaType
@@ -365,7 +365,7 @@ Both meta types and meta objects are type system constructs that undergo type er
 A type parameter can be transformed into a **meta object parameter** by using a **meta type annotation** which looks just like a regular type annotation:
 
 ```typescript
-meta type MetaType = <
+meta type MetaType := <
     A extends unknown
 >
 
@@ -438,7 +438,7 @@ You might be wondering what meta objects are good for. The answer is a lot of th
 Meta objects can be given as expressions or declared like other components of the type system. Here is how you might declare one:
 
 ```typescript
-meta object Example = <
+meta object Example := <
     A = number
     B = string
 >
@@ -528,7 +528,7 @@ This code declares three different entities under the `Namespace` moniker:
 Okay, enough with the premable. Let’s declare some meta objects!
 
 ```typescript
-meta object Example = <
+meta object Example := <
     Type1 = number
     Type2 = string
     Nested = <
@@ -542,12 +542,12 @@ This syntax declares a meta object called Example. **This meta object behaves ju
 Being values in the land of types, meta objects 
 
 ```
-meta type Thing = <
+meta type Thing := <
 	Type1 extends number
 	Type2 extends string
 >
 
-meta type ThingExtended = Thing & <
+meta type ThingExtended := Thing & <
 	Type3 extends string
 >
 ```
@@ -614,7 +614,7 @@ Runtime object structure can be regarded as a labeled tree with runtime values, 
 Here is an example of a meta object:
 
 ```typescript
-meta object Example = {
+meta object Example := {
 	type A = {
     	value number
 	}	
@@ -676,3 +676,257 @@ The right-hand side of the equivalence constraint also gives instructions on how
 Using the `:=` constraint guarantees that inference will construct equivalent types, given the same typing environment, forcing it to be a fairly deterministic process. This means that equivalence constraints on meta types can be used to define aliases and associated types, allowing users to avoid repetition.
 
 The equivalence constraint only acts like a type alias, though. 
+
+
+
+
+
+f
+
+, the ability to constrain the values of members 
+
+Meta types differentiate between **structure** and 
+
+Meta types can impose two sorts of constraints on their members:
+
+1. **Subtype constraints** which work on types embedded in the meta object.
+2. **Meta type annotations** which apply to the structure of the meta object.
+
+
+
+Meta objects have values that are types, so subtype constraints are essentially constraints placed on values directly. 
+
+This is possible because meta types exist one level above ordinary types. Object types can only constrain their members using type annotations – their values can’t be constrained directly, such as by a predicate of some sort. 
+
+
+
+You might have noticed that meta types can impose two types of constraints – **subtype constraints**, which work on embedded types, and meta type annotations
+
+Object types describe runtime structure using other object types and primitive types, which are given by the language. Object types can’t impose constraints on values directly since they’re part of the runtime and not part of the type system.
+
+However, meta types are one level up. Their structure is meta structure and their values are types. Both of these are part of the type system, so both can be constrained.
+
+f
+
+In object types, the structure is determined by type annotations. However, meta objects have structure which is separate from the types they embed. As such, meta types can impose two types of constraints on meta objects:
+
+1. Subtype constraints, which affect embedded types.
+2. Metatype annotations, which affect embedded structure – other meta objects.
+
+
+
+Metatype annotaitons
+
+
+
+except that its instances are *meta objects* in which the **variable members** `A` and `B` are replaced with various concrete types that match its constraints. You can see these as “values” that `A` and `B` might take.
+
+Here are some examples:
+
+```
+// These are all meta objects that are instances of Foo
+< 
+	A := 1 | 2, 
+	B := "one" | "two" 
+>
+< 
+	A := number, 
+	B := "" 
+>
+< 
+	A := 1 | 2 | 3 | 4, 
+	B := "foo" | "bar" 
+>
+```
+
+Just as meta objects can correspond to generic instantiations, meta types can correspond to the generic signatures that are instantiated. A more direct comparison can be made between `Foo` and the generic signature of the following function:
+
+```typescript
+declare function doThing<A extends number, B extends string>(a: A, b: B): void
+```
+
+As we saw earlier, meta objects can be nested. This means that our meta type must support both **meta object variables** and **type variables**. These variables use different types of constraints.
+
+1. The subtype constraint
+
+Instantiating this signature yields the 
+
+
+
+Has all sorts of instances, such as `{a: 1, b: “a”}`, `{a: 15, b: “hello”}`, `{a: -1, b: “world”}`. 
+
+
+
+ **This is analogous to object types.** However, where object types have just one mechanism of constraining members, meta types have two:
+
+1. Meta annotations, used for meta object members.
+2. Type constraints, used for type members.
+
+These constraints allow meta types to fully describe the universe of meta objects.
+
+Constraints can use other constrained members in the constraint, in the same way type parameters are allowed to do so:
+
+```typescript
+declare function foo<A, Stack extends {value: A, next: Stack | null}>(): void
+```
+
+Since all members must be constrained, let’s investigate meta types as a whole using the **subtype constraint**.
+
+### Meta types via the subtype constraint
+
+This constrains a variable to be a subtype of some other type, and works just like a subtype constraint in a generic signature.
+
+Here is an example of a meta type that declares a single member using a subtype constraint:
+
+```typescript
+meta type Simple := <
+	Sth extends unknown
+>
+// Similar to meta object notation, but meta objects must specify all members.
+// Meta objects and meta types can't appear in the same contexts so it's never ambiguous.
+```
+
+Once again, meta types are written as expressions. Declaring them simply binds them to a name. Like other declarations, meta type declarations can be exported and imported.
+
+The syntax of a meta type is similar to that of a meta object. There are several important differences, though:
+
+1. Meta objects fully assign all their members to concrete types or other meta objects using `:=`.
+2. Meta objects can’t reference other 
+
+Here are some instances of said meta type. As with everything else in TypeScript, determining if a meta object is an instance of a meta type is done structurally, where structure is defined very similarly to object type structure. 
+
+```typescript
+// Sth can be any data type
+< Sth := 1 | 2 >
+< Sth := number >
+< Sth := string >
+< Sth := { name: string, id: number } >
+
+// Meta objects can define more structure if they want.
+< Sth := number, Else := string >
+< Sth := number, Else := < Boo := string > >
+```
+
+On the other hand, the following aren’t instances of it:
+
+```typescript
+// ! COUNTER-EXAMPLES !
+< Boo := number > 
+// Structure doesn't match!
+    
+< Sth := < A := 1 > > 
+// Expected Sth to be data type, but it was a meta object!
+    
+< Sth extends string > 
+// Nice try, but it's just another meta type. Meta objects always specify all members! 
+    
+< >
+// It's empty
+    
+< Sth = 10 > 
+// Syntax error    
+    
+{ Sth: string }
+// This is a data type.
+// ! COUNTER-EXAMPLES !
+```
+
+Every member specified by a meta type must be constrained somehow. There are several possible constraints, and these constraints can reference ambient types or give types as inline expressions. For example:
+
+```typescript
+< Sth extends { complicated: Record<string, {a: 1}> } >
+```
+
+Member constraints can also reference other variables in the meta type or themselves, which allows them to represent complex webs of interacting types. For instance:
+
+```typescript
+<
+	Tree extends {
+		left: Tree | null
+		right: Tree | null
+	}
+	Visitor extends {
+		visit(tree: Tree);
+	}
+>
+```
+
+The same ability also lets us specify circular constraints, which are treated in the same way as circular constraints involving type parameters.
+
+### Meta type annotations
+
+A meta type annotation is written in the same way as a type annotation, and denotes that a member variable must be an instance of a meta type.
+
+```typescript
+meta type Example := <
+    X extends unknown
+>
+
+< Sth: Example >
+```
+
+Here are some instances:
+
+```typescript
+< Sth := < X := string > >
+< Sth := < X := number > >
+< Sth := < X := never > >
+
+// Once again, meta objects can also have additional structure.
+< Sth := < X := string, Y := number>, Else := string >
+```
+
+Here are some non-instances:
+
+```typescript
+// ! COUNTER-EXAMPLES !
+
+< Sth := 5 >
+// Expected Sth to be a meta object, but it was a data type.
+    
+< Sth := < Y := string > >
+// Sth doesn't have the member X.
+
+< Sth: Example >
+// This is another meta type, not a meta object.
+    
+// ! COUNTER-EXAMPLES !
+```
+
+### Equivalence constraint
+
+**The equivalence constraint might end up being the most important constraint.** As we’re going to see in the usage section, it can be crucial for inference purposes.
+
+Just as it sounds, this makes sure a type variable is *equivalent* (the precise definition will probably require the splitting of many hairs) to some construction. 
+
+The simplest way to use this constraint looks like this:
+
+```typescript
+// This is both a meta object and a meta type
+// Just like {a: "x"} is both a value and a type.
+< A := string >
+< A := string; B := number >
+```
+
+As you can see, the syntax is similar or identical to the syntax used for meta objects. 
+
+That’s because it’s the meta equivalent of the relationship between the type `{a: 5}` and the value `{a: 5}`. They will always occur at different positions, so the language will never be confused about which one we mean, and there is a close correspondence between them.
+
+That’s a silly example, though. Like other constraints, equivalence constraints can reference other type variables, and that’s the real point behind them.
+
+```
+<
+	X extends unknown
+	Predicate := (x: X) => boolean
+>
+```
+
+Here are some instances of that meta type:
+
+```typescript
+< X := string, Predicate := (x: string) => boolean >
+< X := object, Predicate := (x: object) => boolean >
+< X := boolean, Predicate := (x: boolean) => boolean >
+```
+
+Here are some non-instances.

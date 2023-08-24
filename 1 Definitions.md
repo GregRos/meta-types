@@ -6,40 +6,41 @@ Meta objects, like most type system constructs, can be declared or given as an e
 
 ```typescript
 < 
-    A := number, 
-    B := string
+    Foo := number, 
+    Bar := string
 >
 ```
 
-**A meta object resembles an object value in the world of types.** Where normal objects embed values like `5` and `“hello world”`, meta objects embed values like `string` and `{ id: number, name: string }`.
+**A meta object resembles an object value in the world of types.** Where normal objects embed values like `5` and `“hello world”`, meta objects embed **type values** like `string` and `{ id: number, name: string }`.
 
-Meta objects can be declared, exported, and imported. Here is how that looks
+Meta objects can be declared, exported, and imported. Here is how that looks:
 
 ```
-export meta object Something 
-```
-
-
-
-Like all things in TypeScript, meta objects are purely structural entities. 
-
-To help is understand meta objects, let’s investigate the equivalence 
-
-With the empty meta object being represented as `< >`.
-
-This is an object structure surrounded by `<…>`, where every leaf is a type. It’s pretty much identical to an object type, but the syntax is different because it represents a different  concept.
-
-A meta object declaration associates this expression with a name. This can be exported, imported, and so on – like all other declarations.
-
-```typescript
-meta object TypeObject = <
-    A := number,
-    B := string,
-    C = <
-    	D := object, E := number
-    >
+export meta object Foobar := <
+	Foo := number,
+	Bar := string
 >
 ```
+
+Meta objects can also be nested, just like regular objects.
+
+```
+<
+	Foo := <
+		Bar := string
+	>,
+	Baz := object
+>
+```
+
+**Like all TypeScript entities, meta objects are purely structural.** They just have a new form of structure which I like to call *meta structure*. Two meta objects with the same meta structure (including embedding the same types, up to equivalence) are equivalent.
+
+Looking at an individual meta object, we can see that it has two sorts of members:
+
+1. Type members
+2. Meta members – other meta objects
+
+The meta members form the structure of a meta object, while the type members are embedded like scalar values in that structure. 
 
 To better understand meta objects, let’s compare them to existing structures and patterns in TypeScript code.
 
@@ -47,14 +48,14 @@ To better understand meta objects, let’s compare them to existing structures a
 
 One of the reasons behind the `<…>` notation is the correspondence between meta objects and the instantiations of generic types.
 
-Let’s say you have a generic type, and we instantiate it with a set of type arguments.
+Let’s say we have generic type and we instantiate it with a set of type arguments:
 
 ```typescript
-type Example<A, B> = [A, B]
-type Instantiated = Example<number, string>
+type Foo<A, B> = [A, B]
+type Fooed = Foo<number, string>
 ```
 
-Then the instantiation correspondence to a meta object of the form:
+Then the instantiation correspondence to the meta object:
 
 ```typescript
 <
@@ -63,18 +64,18 @@ Then the instantiation correspondence to a meta object of the form:
 >
 ```
 
-In fact, this allows us to define a **natural spread operator for type parameters**. This operator works using key-value semantics rather than sequential semantics.
+In fact, this allows us to define a **natural spread operator for type parameters**. This operator works using key-value semantics rather than sequential semantics. Kind of strange for a spread operator in this context, but let’s just go with it.
 
 ```typescript
-meta object Types = <
+meta object Types := <
     A := number,
     B := string
 >
     
-type Instantiated = Example<...Types>
+type AlsoFooed = Foo<...Types>
 ```
 
-This is one way in which Meta Types simplify and restructure complex generic types – by turning complicated instantiations into declared entities with their own structure.
+Actually, this is one way in which Meta Types restructure complex generic types – by turning complicated instantiations into declared entities with their own structure.
 
 ### Correspondence 2: Namespaces
 
@@ -97,9 +98,9 @@ This namespace defines several different entities.
 
 The third entity corresponds to a meta object also named `Example`. 
 
-**In other words, meta objects are like namespaces that can only declare types, which are all exported.**
+**In other words, meta objects are like namespaces that only contains exported type declarations.**
 
-This means that meta objects can be used just like namespaces, even though this isn’t the main way you’d use them.
+This means that meta objects can be used just like namespaces, even though this isn’t the main way you’d use them. 
 
 ```typescript
 let a: Example.A
@@ -109,7 +110,7 @@ let a: Example.A
 
 Meta objects are value-like constructions in the world of types that describe a rigid and finite tree structure.
 
-Because types aren’t part of that structure, the types in a meta object can reference other types in the same meta object, or even themselves. This works like types embedded in a namespace.
+However, because types aren’t part of that structure, the types in a meta object can reference other types in the same meta object, or even themselves. This just works like types embedded in a namespace.
 
 ```typescript
 namespace Illustration {
@@ -122,272 +123,435 @@ namespace Illustration {
 
 This means that the following are legal constructions:
 
-```typescript
-< A := string, B := {value: A} >
-< A := { value: A } >
+```
+< 
+    A := string, 
+    B := { value: A } 
+>
+<
+	A := { value: A } 
+>
 ```
 
-However, the structure of a meta object can’t be built using references like these. While non-cyclical reference can be allowed:
+However, these kinds of references can’t be used for the actual structure of a meta object – the `:=` bindings themselves – as it can create infinite structures or even contradictions. While some references can be allowed as a shorthand:
 
 ```typescript
 < A := string, B := A >
 ```
 
-Anything that resolves into a cycle isn’t. For example:
+Anything that resolves into a cycle isn’t allowed:
 
-```typescript
+```
 // COUNTER EXAMPLES
-< A := < X := A > >
-< A := < X := B >, B := < X := A > >
+meta object CYCLE := < 
+	A := < 
+		X := A 
+	> 
+>
+meta object MUTUAL_CYCLE := < 
+	A := < 
+		X := B 
+	>, 
+	B := < 
+		X := A 
+	> 
+>
 // COUNTER EXAMPLES
 ```
 
 ## Meta types
 
-Meta objects are the workhorse of Meta Types, but I’m giving meta types all the credit because they’re just so cool.
+A meta type defines a structural template which some meta objects match and others don’t. The template consists of named **members**, each of which must be constrained somehow. Here is an example of a meta type declaring a member and constraining it via a **meta annotation**.
 
-I said earlier that **a meta type is the type of a meta object**. It’s like a template that some meta objects match and others don’t. The template uses a combination of structure and several different types of constraints, resembling a higher-order object type.
-
-While object types have value members, meta types have type and meta object members. These members can be of two different kinds:
-
-1. Variable members
-2. Computed members
-
-While meta types are structurally typed, their computed members form **implicit structure**. This is structure that is implicitly added, or **mixed in**, into a conforming meta object during the process of conformation.
-
-**Implicit structure is something object types just can’t have.** This is because the instance of an object type is a runtime object, which type information can’t affect. However, there is no problem with applying it to a meta object. 
-
-However, because the instance of a meta type still belongs in the world of types, there is no problem with enriching it in this way. 
-
-**However, because the instance of a meta type is a type-level structure, there is no issue with enriching it with additional type information in this way.** 
-
-
-
-Two instances of the same meta type (that is, two meta objects) are equivalent if they have 
-
-Meta types have two kinds of members.
-
-1. Constrained member variables
-2. c   
-
-Constrained member variables correspond to constrained type parameters, while computed members are associated and derived types constructed from those parameters.
-
-While both variables and 
-
-When 
-
-Whereas object types can have value members and method members, meta types have **meta members**, which can either be:
-
-* Meta object members
-* Type members
-
-These members correspond to type parameters, and the meta type as a whole corresponds to a generic signature – but encapsulated in a single structural entity and enriched with additional constriants. These constraints are the source of a meta type’s expressive power.
-
-**The constraint of a member is part of its declaration**, and it’s required. This constraint must specify, implicitly or explicitly, whether the member is a meta object or a type.
-
-Specifically, meta types support the following constraints:
-
-1. **Subtype constraints**, e.g. `Member extends string`
-2. **Meta annotations**, e.g. `Member: MetaType`
-3. **Equivalence constraints**, e.g. `Member := number`
-
-These constraints are allowed to reference other meta members or the member being constrained, in the same way type parameters might do so:
-
-```typescript
-declare function foo<A, Stack extends {value: A, next: Stack | null}>(): void
 ```
-
-Since all members must be constrained, let’s investigate meta types as a whole using the **subtype constraint**.
-
-### Meta types via the subtype constraint
-
-This constrains a variable to be a subtype of some other type, and works just like a subtype constraint in a generic signature.
-
-Here is an example of a meta type that declares a single member using a subtype constraint:
-
-```typescript
-meta type Simple = <
-	Sth extends unknown
+meta type Foo := <
+	Bar: type
 >
-// Similar to meta object notation, but meta objects must specify all members.
-// Meta objects and meta types can't appear in the same contexts so it's never ambiguous.
 ```
 
-Once again, meta types are written as expressions. Declaring them simply binds them to a name. Like other declarations, meta type declarations can be exported and imported.
+This meta annotation says that `Bar` must be a data type, rather than a meta object. 
 
-The syntax of a meta type is similar to that of a meta object. There are several important differences, though:
-
-1. Meta objects fully assign all their members to concrete types or other meta objects using `:=`.
-2. Meta objects can’t reference other 
-
-Here are some instances of said meta type. As with everything else in TypeScript, determining if a meta object is an instance of a meta type is done structurally, where structure is defined very similarly to object type structure. 
+To understand how meta types work, let’s compare them to object types. Here is an object type that’s very similar to `Foo`:
 
 ```typescript
-// Sth can be any data type
-< Sth := 1 | 2 >
-< Sth := number >
-< Sth := string >
-< Sth := { name: string, id: number } >
-
-// Meta objects can define more structure if they want.
-< Sth := number, Else := string >
-< Sth := number, Else := < Boo := string > >
+type Baz = {
+	Bar: unknown;
+}
 ```
 
-On the other hand, the following aren’t instances of it:
+It has all sorts of instances, such as:
 
-```typescript
-// ! COUNTER-EXAMPLES !
-< Boo := number > 
-// Structure doesn't match!
-    
-< Sth := < A := 1 > > 
-// Expected Sth to be data type, but it was a meta object!
-    
-< Sth extends string > 
-// Nice try, but it's just another meta type. Meta objects always specify all members! 
-    
-< >
-// It's empty
-    
-< Sth = 10 > 
-// Syntax error    
-    
-{ Sth: string }
-// This is a data type.
-// ! COUNTER-EXAMPLES !
+```
+{ Bar: "abc" }
+{ Bar: 15 }
+{ Bar: () => 5, Also: 200 }
 ```
 
-Every member specified by a meta type must be constrained somehow. There are several possible constraints, and these constraints can reference ambient types or give types as inline expressions. For example:
+As we’ve talked about earlier, meta objects embed types where there used to be values. To get instances of `Foo` we follow the same pattern, just replace all the values with their types:
 
-```typescript
-< Sth extends { complicated: Record<string, {a: 1}> } >
+```
+< Bar := string >
+< Bar := number >
+< Bar := () => number, Also := number >
 ```
 
-Member constraints can also reference other variables in the meta type or themselves, which allows them to represent complex webs of interacting types. For instance:
+Here are some non-instances of `Foo`:
 
-```typescript
+```
+// !!! COUNTER EXAMPLES !!!
+
+< A := number >
+// ERROR: Must have type variable `Bar`
+
+< 
+	Bar := <
+		X := string
+	>
+>
+// ERROR: `Bar` must be a type member
+
+```
+
+Meta objects can be nested, meaning they can have other meta object members. Meta annotations can describe these as well – we just need to use another meta type instead of the special token `type`.
+
+```
+meta type Foobar := <
+	Inner: Foo
+>
+```
+
+Here are some instances of `Foobar`:
+
+```
+< 
+	Inner := <
+		Bar := string
+	>
+>
+< 
+	Inner := <
+		Bar := string,
+		Also := number
+	>
+>
+< 
+	Inner := <
+		Bar := string
+	>,
+	Also := string
+>
+```
+
+Meta types can also constrain members using a **subtype constraint**. This functions just like a subtype constraint in a generic signature. This only makes sense for type members, so the `: type` met annotation is added if it’s not already present:
+
+```
+meta type SubtypeExample := <
+	Fst extends { readonly value: string },
+	Snd: type extends { readonly value: number }
+>
+```
+
+Here are some instances of this meta type:
+
+```
+< 
+	Fst := { readonly value: string, readonly also: number },
+	Snd := { readonly value: number }
+>
+< 
+	Fst := { value: string },
+	Snd := { readonly value: 100 }
+>
+
+// This also works:
 <
-	Tree extends {
-		left: Tree | null
-		right: Tree | null
-	}
-	Visitor extends {
-		visit(tree: Tree);
-	}
+	Fst := never,
+	Snd := never
 >
-```
-
-The same ability also lets us specify circular constraints, which are treated in the same way as circular constraints involving type parameters.
-
-### Meta type annotations
-
-A meta type annotation is written in the same way as a type annotation, and denotes that a member variable must be an instance of a meta type.
-
-```typescript
-meta type Example = <
-    X extends unknown
->
-
-< Sth: Example >
-```
-
-Here are some instances:
-
-```typescript
-< Sth := < X := string > >
-< Sth := < X := number > >
-< Sth := < X := never > >
-
-// Once again, meta objects can also have additional structure.
-< Sth := < X := string, Y := number>, Else := string >
 ```
 
 Here are some non-instances:
 
-```typescript
-// ! COUNTER-EXAMPLES !
+```
+< Fst := string, Snd := never >
+// ERROR: Fst must be a subtype of `{ readonly value: string }`
 
-< Sth := 5 >
-// Expected Sth to be a meta object, but it was a data type.
-    
-< Sth := < Y := string > >
-// Sth doesn't have the member X.
+< 
+	Fst := <
+		X := string
+	>,
+	Snd := never
+>
+// ERROR: Fst must be a type, but it was a meta object.
 
-< Sth: Example >
-// This is another meta type, not a meta object.
-    
-// ! COUNTER-EXAMPLES !
+<
+	Fst extends { a: string },
+	Snd extends { a: number }
+>
+// ERROR: That's another meta type.
+
+{ Fst: { a: string }, Snd: { a: number }}
+// ERROR: That's a data type!
 ```
 
-### Equivalence constraint
+So meta types actually have two ways of constraining their members, while regular types have just one. This makes sense because they are a higher-order type system one level above the normal one. They can constrain members on their own level or on the level below.
 
-**The equivalence constraint might end up being the most important constraint.** As we’re going to see in the usage section, it can be crucial for inference purposes.
+> Actually, there is more to this: when a meta type places a subtype constraint on a member, it’s placing constraints on its own values. For regular types to do the same thing they would need to phrase constraints in terms of *their* values, which are things like strings and numbers.
+>
+> It might look something like this:
+>
+> ```
+> type A = {
+> 	foo must|x -> x > 10|
+> }
+> type B = {
+> 	bar must|x -> x.includes("bob")|
+> }
+> ```
+>
+> This is a feature called [dependent typing](https://www.fstar-lang.org/tutorial/book/part1/part1_getting_off_the_ground.html#boolean-refinement-types). So if we had that, both meta types and types would be able to place two constraints – a type constraint and a value constraint. 
 
-Just as it sounds, this makes sure a type variable is *equivalent* (the precise definition will probably require the splitting of many hairs) to some construction. 
-
-The simplest way to use this constraint looks like this:
-
-```typescript
-// This is both a meta object and a meta type
-// Just like {a: "x"} is both a value and a type.
-< A := string >
-< A := string; B := number >
-```
-
-As you can see, the syntax is similar or identical to the syntax used for meta objects. 
-
-That’s because it’s the meta equivalent of the relationship between the type `{a: 5}` and the value `{a: 5}`. They will always occur at different positions, so the language will never be confused about which one we mean, and there is a close correspondence between them.
-
-That’s a silly example, though. Like other constraints, equivalence constraints can reference other type variables, and that’s the real point behind them.
+Constraints in meta types are allowed to reference other members. This works just like in type parameters. Here is an example:
 
 ```
 <
-	X extends unknown
-	Predicate := (x: X) => boolean
+	Bar: type
+	Foo extends Bar
 >
 ```
 
-Here are some instances of that meta type:
+Here are some instances:
 
-```typescript
-< X := string, Predicate := (x: string) => boolean >
-< X := object, Predicate := (x: object) => boolean >
-< X := boolean, Predicate := (x: boolean) => boolean >
+```
+< Bar := string, Foo := string >
+< Bar := string, Foo := "abc" >
+< Bar := {}, Foo := never >
 ```
 
-Here are some non-instances.
+Here are some non-instances:
 
-```typescript
-< X := "abc", Predicate := (x: string) => boolean >
-< X := "abc", Predicate := (x: string) => never >
-< A := "abc", Predicate := boolean >
-// Predicate is not equivalent to `(x: "abc") => boolean`
-    
-< Y := "abc" >
-// Must have member X
-    
-< X := < A := 1 > >
-// X must be a type    
+```
+< Bar := string, Foo := number>
+// Expected Foo to be a subtype of string
+
+< A := string >
+// Must have members Bar, Foo
 ```
 
-## Correspondence: Generic signatures
+Constraints are also allowed to reference themselves:
 
-Meta objects correspond to generic instantiations, while meta types correspond to generic signatures, albeit enriched with additional constraints.
+```
+< LinkedList extends { value: unknown, next: LinkedList | null } >
+```
+
+It’s possible to write contradictory or tautological constraints. Although ideally this would be prevented by the current mechanisms for avoiding cycles in similar generic constraints, in practice doing so might be impossible due to undecidability and unsoundness considerations.
+
+#### *The dark side*
+
+We could pretend we’re satisfied with what I just said, or we could venture into the abyss.
+
+You see, in the abyss, we don’t even try to limit these cycles. 
+
+After all, what are types but predicates over a universe of values? And what right do *we*, as humans, have to police the world of well-formed predicates?
+
+In the abyss, we might meet strange denizens:
+
+```
+< Liar extends (Liar extends true ? false : true) >
+< Truther extends Truther >
+< One extends TheOther, TheOther extends One >
+```
+
+But shouldn’t we strive to accept all types, even should their forms prove monstrous to us? 
+
+## Bringing it together
+
+Meta types are integrated into the rest of the language via type parameters. We can turn a regular type parameters into a meta object parameter by giving it a meta annotation:
+
+```typescript
+declare function doSomething<T: MetaType>(): void
+```
+
+We can also do something else. You may recall the correspondence between meta objects and generic instantiations. Well, something similar applies between meta types and generic signatures. This means that would have rest-like type parameter which is meta annotated, just like a rest parameter that’s type annotated.
+
+```typescript
+declare function doSomethingElse<...Args: MetaType>(): void
+```
+
+Except that the parameter would have key-value semantics instead of sequential semantics.
+
+## Implicit structure
+
+Implicit structure is structure that belongs to a meta type, which imparts it on the meta object. This is how types work in other languages, like C# and JavaScript – and how they can’t possibly work in TypeScript.
+
+The instances of meta types are meta objects, though, which are very far from the runtime world. On this higher plane of existence we can basically do whatever we want – especially if it’s something really useful.
+
+Here is how it looks like:
+
+```
+meta type Foo := <
+	Input: type
+	Predicate := (x: Input) => boolean
+>
+```
+
+Implicit structure is defined using the `:=` operator, the same symbol that is used for the members of a meta object. This is meant to convey that the structure is “fixed”, where the rest of the structure is variable. So if two meta objects have the same non-implicit structure, and they are annotated with the same meta type, they must also have the same implicit structure.
+
+I’m pretty sure it would still work if the types were mutually recursive, at least as long as there isn’t an obvious cycle:
+
+```
+<
+	Input extends {a: Other | null}
+	Other := Input
+>
+```
+
+Of course, the implicit structure of different meta types can just be different. The simplest example is a meta type that only has implicit structure:
+
+```
+meta type Bar := <
+	A := string
+	B := number
+>
+meta type Baz := <
+	A := object
+	B := boolean
+>
+```
+
+These look just like meta objects! And that’s because this is the equivalent of the type `{a: 5}` versus the value `{a: 5}`. The type and value look the same because the value is a minimal instance of the type.
+
+### Much is unknown
+
+I’m not exactly sure how the implicit structure is applied and how it would work in different situations. What I originally had was an equivalence constraint combined with type inference. That acted in broadly the same way, but I quickly realized it’s actually one of the most important features of meta types, and it should be phrased that way.
+
+Some of the potential issues are:
+
+* What happens if you have two meta types with different implicit structure but the same explicit structure?
+* Does a meta object actually get the structure, or is it more like an extension method type of deal?
+
+When it was an equivalence constraint, inference would just try to construct the type based on its definition at the point of call – or fail to do so, which would probably result in an instantiation error. I’m not sure if that’s the best way though.
+
+
+
+
+
+
+
+
+
+that all instances of a meta object will have the same implicit structure if they have the same explicit structure.
+
+1. Ignoring the implicit aspect, It’s an equivalence constraint.
+2. But with this implicit aspect, it becomes additional functionality (in the form of type expression) that `HasImplicitStructure` provides to its instances.
+
+This can be likened to the way a type class extends a data type with functionality. Two instances of a meta type can differ in implicit structure only if they differ in explicit structure.
+
+This means that implicit structure can only be derived from the other members of the meta type, though it can also just be constant.
+
+f
+
+Note that in many respects, this meta type resembles a higher-kinded type, something like:
+
+```
+type Predicate<SomeType> = (x: SomeType) => boolean
+```
+
+
+
+1. If we ignore its implicit nature, it becomes an **equivalence constraint**.
+2. 
+
+**This is different from how structure works in TypeScript.** Structure is something that values possess whether or not they are connected to types. However, meta types can have implicit structure because both the type and its instances are part of the type system. There is no separation, unlike the separation between type definitions and runtime code.
+
+However, implicit structure is always dependent on and derived from non-implicit structure. As such, implicit structure can only differ between meta objects if their non-implicit structure differs. This means that we only need to compute implicit structure once for every 
+
+Instead, implicit structure works more like casting does in a language like C#. It’s a conversion, and 
+
+This process of applying implicit structure – and potentially removing it – is something that will need to be expanded on further. 
+
+ThImplicit structure is structure that is added into a meta object imp
+
+This kind of structure extends instances of the meta type with additional structure at the point of conformation – but it can also be specified explicitly.
+
+In practice, there are two ways to view static structure:
+
+1. As a type member constrained using a strict **equivalence constraint**.
+2. As structure implicitly mixed into meta objects during the point of conformation. 
+
+The two are essentially the same because of the following rule governing implicit structure:
+
+> If two instances of a meta type have different static structure, then they have different non-static structure.
+
+Static structure is the result of side-effects free and memoizable computation that happens on a purely type system level. It’s the structural analog of Scala’s trait system, but embedded in higher-order types.
+
+I think the ability to express implicit structure makes meta types really special 
+
+
+
+Implicit members are declared using the `:=` symbol, the same as in meta objects. In many contexts they act as a strict **equivalence constraint**. Meaning that, for a given combination of 
+
+This is possible because both the metatype and its structure are entirely within the type system.
+
+Implicit structure is derived from the variable members of a meta type, so that instances that have identical explicit structure have the same implicit structure. However, the relationship between the two can be complex.
+
+Implicit structure is still part of the structure of a meta object. In fact, implicit structure can be made explicit as long as 
+
+Implicit structure is defined using the `:=` definitional operator. Here is an example:
+
+```
+meta type HasImplicitStructure := <
+	Foo: type
+	Predicate := (x: Foo) => boolean
+	Array := Foo[]
+>
+```
+
+
+
+
+
+
+
+To understand how this would work, let’s imagine a similar feature applied to regular types – something that, again, can’t be done in TypeScript.
+
+```typescript
+// THIS IS NOT POSSIBLE
+
+type LinkedList = {
+    // regular member
+	value: unknown
+    
+    // regular member
+    next: LinkedList | null
+    
+    // implicit member added to the structure by the type itself
+    implicit getLength() {
+    	return 1 + (this.next?.getLength() ?? 0)
+	}
+}
+const obj: LinkedList = {
+    value: 10,
+    next: null
+}
+console.log(obj.length);
+```
+
+
+
+While meta types do act as templates, that’s not the whole story. They also have something called *implicit structure.* Implicit structure is structure which is derived from the variable members of a meta type.
 
 This correspondence works similarly to a typed rest parameter in a function, except that it uses key-value semantics and not sequential semantics. 
 
 **A generic type can define a rest type parameter with a meta type annotation describing its structure.**
 
 ```typescript
-meta type Foo = <
+meta type Foo := <
     Foo extends unknown
 	ArrayFoo := Foo[]
 >
-declare function something<...F: Foo>(value: F.Foo, arr: F.ArrayFoo): void;
+declare function something
 ```
-
-As part of this integration, the `:=` constraint would be added to type parameters as well, if only for completeness’s sake.
 
 ## Operators and Operations
 
@@ -418,13 +582,13 @@ example<...Blah>()
 This version of the operator is different, and is used to combine meta objects like the spread operator for objects.
 
 ```typescript
-meta object One = <
+meta object One := <
     A := number
 >
-meta object Two = <
+meta object Two := <
     B := string
 >
-meta object Three = <
+meta object Three := <
     ...One,
     ...Two
 >
@@ -562,3 +726,46 @@ There are a few other things.
 
 ### 
 
+
+
+These constraints are allowed to reference other meta members or the member being constrained, in the same way type parameters might do so:I said earlier that **a meta type is the type of a meta object**. 
+
+The **meta object ⇔ meta type** relationship is the same as the **object ⇔ object type** relationship. **That is, meta objects are the instances of meta types.** Meta types can also be regarded as a structural template that some meta objects match and others don’t.
+
+
+
+1. Meta annotations, used for meta object members.
+2. Type constraints, used for type members.
+
+This is because they are one level above the normal type system
+
+Like everything else, meta types are structural. The core structure of a meta type describes the meta objects which are its instances. This is analogous to how object types describe object instances. 
+
+Because meta types are one level above the normal type system, they can use two different kinds of constraints. 
+
+Object types describe object values using type annotations, but meta types can have several kinds of members.
+
+1. **Meta object members**, also called **meta members**, which use **meta annotations**.
+2. **Type members**, which use **type constraints**.
+
+
+
+**The constraint of a member is part of its declaration**, and it’s required. This constraint must specify, implicitly or explicitly, whether the member is a meta object or a type.
+
+Specifically, meta types support the following constraints:
+
+1. **Subtype constraints**, e.g. `Member extends string`
+
+2. **Meta annotations**, e.g. `Member: MetaType`
+
+3. **Equivalence constraints**, e.g. `Member := number`
+
+4. However, **meta types possess another form of structure altogether.**  This structure is called **implicit structure**, and its existence is only possible because the instances of meta types are still part of the type system.
+
+   Instead of being constraints on the structure of a meta object, implicit structure expands a meta object conforming to a meta type with additional structure, like additional types, derived from the structure it already has.
+
+   As an analogy, consider Scala’s trait system, which can extend a type with additional members. The main difference is that **the mechanism is one level above Scala’s trait system.** Where Scala’s traits extend classes with extra functionality, implicit structure extends meta objects with extra type definitions.
+
+   While it may sound weirdly abstract, actually implicit structure addresses multiple feature requests and without it, inference would probably be impossible in many cases.
+
+   This means that working with meta types can, potentially, be an additive process. 

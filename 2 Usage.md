@@ -19,7 +19,7 @@ A namespace with a meta annotation must export all variable members. Members wit
 
 
 ```
-meta type Bar = <
+meta type Bar := <
 	A extends string
 	B extends number
 	Complex extends {
@@ -69,7 +69,7 @@ We’ve actually talked about meta annotations already – they’re used in met
 I haven’t really shown a complete usage of this feature, so here it is.
 
 ```
-meta type VectorSpace = <
+meta type VectorSpace := <
     Scalar extends {
         add(x: Scalar): Scalar
         sub(x: Scalar): Scalar
