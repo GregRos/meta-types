@@ -2,7 +2,15 @@
 
 ## Meta objects
 
-Meta objects, like most type system constructs, can be declared or given as an expression. Here is a simple example:
+Meta objects, like most type system constructs, can be declared or given as an expression. They use a new definitional symbol `:=`, which is used instead of `:` or `=` for several reasons:
+
+1. To communicate a different sort of assignment
+2. The `=` symbol is used for type parameter defaults.
+3. The `:` symbol is used for something else.
+
+Pretty much everything involving meta types will use `:=` as a definitional symbol like this. 
+
+Here is a simple example:
 
 ```typescript
 < 
@@ -18,11 +26,11 @@ Meta objects can be declared, exported, and imported. Here is how that looks:
 ```
 export meta object Foobar := <
 	Foo := number,
-	Bar := string
+	Bar := { id: number }
 >
 ```
 
-Meta objects can also be nested, just like regular objects.
+Meta objects can also be nested, just like regular objects. Note that the object type `{…}` doesn’t indicate nesting – it’s just another type. This is how nesting looks like:
 
 ```
 <
@@ -64,7 +72,7 @@ Then the instantiation correspondence to the meta object:
 >
 ```
 
-In fact, this allows us to define a **natural spread operator for type parameters**. This operator works using key-value semantics rather than sequential semantics. Kind of strange for a spread operator in this context, but let’s just go with it.
+In fact, this allows us to define a **natural spread operator for type parameters**. This operator works using key-value semantics rather than sequential semantics. Kind of strange for a spread operator in this context, but I think I prefer it.
 
 ```typescript
 meta object Types := <
@@ -75,9 +83,7 @@ meta object Types := <
 type AlsoFooed = Foo<...Types>
 ```
 
-Actually, this is one way in which Meta Types restructure complex generic types – by turning complicated instantiations into declared entities with their own structure.
-
-### Correspondence 2: Namespaces
+### Correspondence 2: Namespaces (and module types)
 
 Take a look at a namespace like this:
 
@@ -105,6 +111,8 @@ This means that meta objects can be used just like namespaces, even though this 
 ```typescript
 let a: Example.A
 ```
+
+Something similar applies to module types — they have a hidden meta object component, which is also the set of types and namespaces they export.
 
 ### Meta objects and references
 
@@ -148,6 +156,8 @@ meta object CYCLE := <
 		X := A 
 	> 
 >
+// ERROR: Cycle
+
 meta object MUTUAL_CYCLE := < 
 	A := < 
 		X := B 
@@ -156,7 +166,7 @@ meta object MUTUAL_CYCLE := <
 		X := A 
 	> 
 >
-// COUNTER EXAMPLES
+// ERROR: Mutual cycle
 ```
 
 ## Meta types
@@ -169,7 +179,7 @@ meta type Foo := <
 >
 ```
 
-This meta annotation says that `Bar` must be a data type, rather than a meta object. 
+This meta annotation says that `Bar` must be a data type (through the special word `type`), rather than a meta object. 
 
 To understand how meta types work, let’s compare them to object types. Here is an object type that’s very similar to `Foo`:
 
@@ -198,8 +208,6 @@ As we’ve talked about earlier, meta objects embed types where there used to be
 Here are some non-instances of `Foo`:
 
 ```
-// !!! COUNTER EXAMPLES !!!
-
 < A := number >
 // ERROR: Must have type variable `Bar`
 
@@ -209,7 +217,6 @@ Here are some non-instances of `Foo`:
 	>
 >
 // ERROR: `Bar` must be a type member
-
 ```
 
 Meta objects can be nested, meaning they can have other meta object members. Meta annotations can describe these as well – we just need to use another meta type instead of the special token `type`.
@@ -242,12 +249,16 @@ Here are some instances of `Foobar`:
 >
 ```
 
-Meta types can also constrain members using a **subtype constraint**. This functions just like a subtype constraint in a generic signature. This only makes sense for type members, so the `: type` met annotation is added if it’s not already present:
+Meta types can also constrain members using a **subtype constraint**. This works just like a subtype constraint in a generic signature. This only makes sense for type members, so the `: type` met annotation is added if it’s not already present:
 
 ```
 meta type SubtypeExample := <
-	Fst extends { readonly value: string },
-	Snd: type extends { readonly value: number }
+	Fst extends { 
+		readonly value: string 
+	}
+	Snd: type extends { 
+		readonly value: number 
+	}
 >
 ```
 
@@ -255,12 +266,21 @@ Here are some instances of this meta type:
 
 ```
 < 
-	Fst := { readonly value: string, readonly also: number },
-	Snd := { readonly value: number }
+	Fst := { 
+		readonly value: string
+        readonly also: number 
+    },
+	Snd := { 
+		readonly value: number 
+	}
 >
 < 
-	Fst := { value: string },
-	Snd := { readonly value: 100 }
+	Fst := { 
+		value: string 
+	},
+	Snd := {
+    	readonly value: 100
+     }
 >
 
 // This also works:
@@ -301,6 +321,7 @@ So meta types actually have two ways of constraining their members, while regula
 > It might look something like this:
 >
 > ```
+> // This isn't real  or proposed here
 > type A = {
 > 	foo must|x -> x > 10|
 > }
@@ -332,10 +353,10 @@ Here are some non-instances:
 
 ```
 < Bar := string, Foo := number>
-// Expected Foo to be a subtype of string
+// ERROR: Expected Foo to be a subtype of string
 
 < A := string >
-// Must have members Bar, Foo
+// ERROR: Must have members Bar, Foo
 ```
 
 Constraints are also allowed to reference themselves:
@@ -344,41 +365,63 @@ Constraints are also allowed to reference themselves:
 < LinkedList extends { value: unknown, next: LinkedList | null } >
 ```
 
-It’s possible to write contradictory or tautological constraints. Although ideally this would be prevented by the current mechanisms for avoiding cycles in similar generic constraints, in practice doing so might be impossible due to undecidability and unsoundness considerations.
+It’s possible to write contradictory or tautological constraints. Although ideally this would be prevented by the current mechanisms for avoiding cycles in similar generic constraints, it’s probably impossible in practice. The language manages to be both undecidable and unsound, after all.
 
-#### *The dark side*
+> #### *The abyss*
+>
+> We could pretend we’re satisfied with what I just said, or we could venture into the abyss. The abyss is the alternative universe where we *don’t* try to limit cycles at all. After all, what are types but predicates over a universe of values? And what right do *we*, as humans, have to police the world of well-formed predicates?
+>
+> In the abyss, we might meet strange denizens:
+>
+> ```
+> < Liar extends (Liar extends true ? false : true) >
+> < Truther extends Truther >
+> < One extends TheOther, TheOther extends One >
+> ```
+>
+> But shouldn’t we strive to accept all types, even should their forms prove monstrous to us? 
+>
 
-We could pretend we’re satisfied with what I just said, or we could venture into the abyss.
+## Using meta types from normal code
 
-You see, in the abyss, we don’t even try to limit these cycles. 
+### Via type parameters
 
-After all, what are types but predicates over a universe of values? And what right do *we*, as humans, have to police the world of well-formed predicates?
-
-In the abyss, we might meet strange denizens:
-
-```
-< Liar extends (Liar extends true ? false : true) >
-< Truther extends Truther >
-< One extends TheOther, TheOther extends One >
-```
-
-But shouldn’t we strive to accept all types, even should their forms prove monstrous to us? 
-
-## Bringing it together
-
-Meta types are integrated into the rest of the language via type parameters. We can turn a regular type parameters into a meta object parameter by giving it a meta annotation:
+We can turn a regular type parameters into a meta object parameter by giving it a meta annotation:
 
 ```typescript
 declare function doSomething<T: MetaType>(): void
 ```
 
-We can also do something else. You may recall the correspondence between meta objects and generic instantiations. Well, something similar applies between meta types and generic signatures. This means that would have rest-like type parameter which is meta annotated, just like a rest parameter that’s type annotated.
+We can also do something else. You may recall the correspondence between meta objects and generic instantiations. Well, something similar applies between meta types and generic signatures. 
+
+This means that would have rest-like type parameter which is meta annotated, just like a rest parameter that’s type annotated.
 
 ```typescript
 declare function doSomethingElse<...Args: MetaType>(): void
 ```
 
 Except that the parameter would have key-value semantics instead of sequential semantics.
+
+### Via namespaces
+
+As we’ve discussed, the type declarations of a namespace are a meta object. As such, we can use meta annotations on them:
+
+```typescript
+meta type Foo := < A: type >
+namespace Something: Foo {
+	export type A = string
+}
+```
+
+This makes sure the namespace declares the appropriate types.
+
+### Via modules
+
+This is inspired by #420. Module exports can also be meta annotated as part of a module-wide `implements`-like clause. This was never actually implemented, but it would be as part of this proposal.
+
+```typescript
+export: Foo
+```
 
 ## Implicit structure
 
@@ -392,12 +435,13 @@ Here is how it looks like:
 meta type Foo := <
 	Input: type
 	Predicate := (x: Input) => boolean
+	Array := Input[]
 >
 ```
 
-Implicit structure is defined using the `:=` operator, the same symbol that is used for the members of a meta object. This is meant to convey that the structure is “fixed”, where the rest of the structure is variable. So if two meta objects have the same non-implicit structure, and they are annotated with the same meta type, they must also have the same implicit structure.
+Implicit structure is defined using the `:=` symbol, the same symbol that is used for the members of a meta object. This is meant to convey that the structure is “fixed”, where the rest of the structure is variable. So if two meta objects have the same non-implicit structure, and they are annotated with the same meta type, they must also have the same implicit structure.
 
-I’m pretty sure it would still work if the types were mutually recursive, at least as long as there isn’t an obvious cycle:
+The types can even be mutually recursive, as long as it’s not an obvious cycle.
 
 ```
 <
@@ -421,137 +465,81 @@ meta type Baz := <
 
 These look just like meta objects! And that’s because this is the equivalent of the type `{a: 5}` versus the value `{a: 5}`. The type and value look the same because the value is a minimal instance of the type.
 
-### Much is unknown
+### Needs more exploration
 
-I’m not exactly sure how the implicit structure is applied and how it would work in different situations. What I originally had was an equivalence constraint combined with type inference. That acted in broadly the same way, but I quickly realized it’s actually one of the most important features of meta types, and it should be phrased that way.
+I’m not exactly sure how the implicit structure is applied and how it would work in different situations. 
+
+What I originally had was an equivalence constraint combined with type inference. That acted in broadly the same way, but I quickly realized it’s actually one of the most important features of meta types, and it should be phrased that way.
 
 Some of the potential issues are:
 
 * What happens if you have two meta types with different implicit structure but the same explicit structure?
 * Does a meta object actually get the structure, or is it more like an extension method type of deal?
 
-When it was an equivalence constraint, inference would just try to construct the type based on its definition at the point of call – or fail to do so, which would probably result in an instantiation error. I’m not sure if that’s the best way though.
+When it was an equivalence constraint, inference would just try to construct the type based on its definition at the point of call – or fail to do so, which would probably result in an instantiation error. I’m not sure if that’s the best way though. 
 
+## Shorthands
 
+Some shorthand syntax can be used to make meta types more convenient to use.
 
+### Generic instantiation shorthand
 
+This shorthand is for the following code:
 
-
-
-
-
-that all instances of a meta object will have the same implicit structure if they have the same explicit structure.
-
-1. Ignoring the implicit aspect, It’s an equivalence constraint.
-2. But with this implicit aspect, it becomes additional functionality (in the form of type expression) that `HasImplicitStructure` provides to its instances.
-
-This can be likened to the way a type class extends a data type with functionality. Two instances of a meta type can differ in implicit structure only if they differ in explicit structure.
-
-This means that implicit structure can only be derived from the other members of the meta type, though it can also just be constant.
-
-f
-
-Note that in many respects, this meta type resembles a higher-kinded type, something like:
-
-```
-type Predicate<SomeType> = (x: SomeType) => boolean
+```typescript
+declare function generic<A, B>(): void
+generic<...<A := string, B := number>>()
 ```
 
-
-
-1. If we ignore its implicit nature, it becomes an **equivalence constraint**.
-2. 
-
-**This is different from how structure works in TypeScript.** Structure is something that values possess whether or not they are connected to types. However, meta types can have implicit structure because both the type and its instances are part of the type system. There is no separation, unlike the separation between type definitions and runtime code.
-
-However, implicit structure is always dependent on and derived from non-implicit structure. As such, implicit structure can only differ between meta objects if their non-implicit structure differs. This means that we only need to compute implicit structure once for every 
-
-Instead, implicit structure works more like casting does in a language like C#. It’s a conversion, and 
-
-This process of applying implicit structure – and potentially removing it – is something that will need to be expanded on further. 
-
-ThImplicit structure is structure that is added into a meta object imp
-
-This kind of structure extends instances of the meta type with additional structure at the point of conformation – but it can also be specified explicitly.
-
-In practice, there are two ways to view static structure:
-
-1. As a type member constrained using a strict **equivalence constraint**.
-2. As structure implicitly mixed into meta objects during the point of conformation. 
-
-The two are essentially the same because of the following rule governing implicit structure:
-
-> If two instances of a meta type have different static structure, then they have different non-static structure.
-
-Static structure is the result of side-effects free and memoizable computation that happens on a purely type system level. It’s the structural analog of Scala’s trait system, but embedded in higher-order types.
-
-I think the ability to express implicit structure makes meta types really special 
-
-
-
-Implicit members are declared using the `:=` symbol, the same as in meta objects. In many contexts they act as a strict **equivalence constraint**. Meaning that, for a given combination of 
-
-This is possible because both the metatype and its structure are entirely within the type system.
-
-Implicit structure is derived from the variable members of a meta type, so that instances that have identical explicit structure have the same implicit structure. However, the relationship between the two can be complex.
-
-Implicit structure is still part of the structure of a meta object. In fact, implicit structure can be made explicit as long as 
-
-Implicit structure is defined using the `:=` definitional operator. Here is an example:
+Essentially we can eliminate the usage of `…` and allow the surrounding `<…>` of the generic instantiation to form a meta object.
 
 ```
-meta type HasImplicitStructure := <
-	Foo: type
-	Predicate := (x: Foo) => boolean
-	Array := Foo[]
+generic<A := string, B := number>()
+```
+
+The usage of `:=` suggests that this isn’t how type parameters are normally treated and that the meta type system is involved.
+
+In this situation, the order of the parameters can’t matter as we’re treating them as members of a meta object.
+
+## Inference – doing it and controlling it
+
+Meta types can potentially allow users to partially specify a generic instantiation and have inference complete it. Let’s examine such a situation.
+
+Say we have a generic function as discussed earlier, but we only specify one of the type parameters:
+
+```
+generic<A := string>()
+```
+
+Under the lens of the meta type system, these kinds of problems become meta type checking problems. We have a meta object `< A := string >` and a meta type `<A: type, B: type>`. The meta object isn’t an instance of the meta type, so instead we assume the user wants us to construct an instance via inference.
+
+`A := string` is already specified, so the meta type is narrowed to `<A := string, B: type>`. If we pick the broadest type for `B`, we get `<A := string, B := unknown>`, which is a valid assignment.
+
+We can use similar logic for more complex inference, but the problem of constructing a meta object instance of a meta type is probably undecidable, so sometimes inference will fail.
+
+We can also have special ways to communicate with the inference process, from the point of view of the API designer – the user who defines the meta type. One method that already exists for doing this is default type parameters:
+
+```
+<
+	A: type = string
 >
 ```
 
+The `=` symbol here is used to communicate to the inference process, instead of being type information. It’s kind of similar to a decorator. So we could put instructions there, rather than types:
 
-
-
-
-
-
-To understand how this would work, let’s imagine a similar feature applied to regular types – something that, again, can’t be done in TypeScript.
-
-```typescript
-// THIS IS NOT POSSIBLE
-
-type LinkedList = {
-    // regular member
-	value: unknown
-    
-    // regular member
-    next: LinkedList | null
-    
-    // implicit member added to the structure by the type itself
-    implicit getLength() {
-    	return 1 + (this.next?.getLength() ?? 0)
-	}
-}
-const obj: LinkedList = {
-    value: 10,
-    next: null
-}
-console.log(obj.length);
 ```
-
-
-
-While meta types do act as templates, that’s not the whole story. They also have something called *implicit structure.* Implicit structure is structure which is derived from the variable members of a meta type.
-
-This correspondence works similarly to a typed rest parameter in a function, except that it uses key-value semantics and not sequential semantics. 
-
-**A generic type can define a rest type parameter with a meta type annotation describing its structure.**
-
-```typescript
-meta type Foo := <
-    Foo extends unknown
-	ArrayFoo := Foo[]
+<
+	// Pick the narrowest type
+	A extends unknown = @narrow
 >
-declare function something
+
+<
+	// Never infer
+	A extends unknown = @never
+>
 ```
+
+Since these are reusable structural entities, the user can define these inference rules once and use them repeatedly in different contexts.
 
 ## Operators and Operations
 
@@ -561,25 +549,9 @@ There are a few operations we can define on meta types and meta objects.
 
 Meta objects are value-like constructions in the world of types, and as such support value-like operators.
 
-#### Instantiation
-
-This version of the operator allows us to instantiate generic members by matching up types to type parameters by key. 
-
-```typescript
-// We've talked about this earlier
-meta object Blah := <
-    A = number,
-    B =  string
->
-
-declare function example<A, B>(): void
-
-example<...Blah>()
-```
-
 #### Combination
 
-This version of the operator is different, and is used to combine meta objects like the spread operator for objects.
+This is a spread operator for meta objects, but it applies recursively (in contrast to the JS version). It’s similar to `&` in behavior, but meta objects aren’t types.
 
 ```typescript
 meta object One := <
@@ -594,39 +566,9 @@ meta object Three := <
 >
 ```
 
-However, it differs from the spread operator for objects in several ways.
-
-1. It’s recursive, merging nested meta objects.
-2. The objects must not have conflicting members.
+Objects must not have conflicting members, as this breaks them.
 
 ### Meta types
-
-Meta types are types, and as such support a number of operators that work on types.
-
-#### Indexing
-
-This is the only operator I see as essential for the proposal. It’s similar to the indexing operation on data types:
-
-```typescript
-type Foo = {
-	bar: string
-}
-
-```
-
-
-
-
-
-It works on simple meta types (i.e. not the results of something like a disjunction). The result of this operation is the constraining type of the given member. 
-
-```typescript
-meta type Meta := < Type extends string >
-    
-let a: Meta["Type"]
-```
-
-
 
 #### Disjunction
 
@@ -635,7 +577,6 @@ Disjunction can be used between two meta types, but not between a data type and 
 ```typescript
 // BAD!
 string | < A extends string >
-// BAD!
 ```
 
 This, however, is allowed:
@@ -646,10 +587,27 @@ meta type Foo :=
     | < B extends string, C extends string, Type := "Another" >
 ```
 
-This works like union types work today – it must be disambiguated. The only way to do that is via a conditional involving a shared member of the meta type. So like this:
+This works like union types work today – it must be disambiguated. The only way to do that is via a conditional involving a shared member of the meta type. So basically reproducing a pattern found in existing TypeScript code, but at the meta level.
 
 ```typescript
 type GetSomething<F: Foo> = F.Type extends "OneThing" ? F.A : F.B
+```
+
+In principle, we could use an actual meta type test, maybe calling the operator for this `instanceof`:
+
+```typescript
+// Don't want to support right now
+type GetSomething<F: Foo> = Foo instanceof < A extends string > ? F.A : F.B
+```
+
+However, I’d like to avoid using meta objects in conditionals like this at this stage.
+
+Regardless, this does open the door to generic signatures with alternative structures. You’d probably need the normal signature to also be variadic, like in this function:
+
+```
+declare function doTheFoo<F: Foo>(
+	...args: F.Type extends "OneThing" ? [F.A] : [F.A, F.B]
+): void
 ```
 
 #### Conjunction
@@ -668,104 +626,3 @@ If the subtypes have different constraints on some member, the constraints can s
 
 When this happens, the result is always `never`, though in practice it would probably just be an error. 
 
-
-
-However, if the two have contradictory constraints, this results in `never`. For example:
-
-```
-< A := string > & <
-```
-
-
-
-However, only some constraints can be merged. 
-
-However, some constraints can’t be merged.
-
-A union type must be disambiguated using a conditional for it to be useful. Since I don’t want to support putting meta types in conditionals directly, 
-
-```typescript
-Foo extends < A extends string> ? Foo.A : Foo.B
-```
-
-
-
-
-
- `string | < A extends string >` is not allowed
-
-```typescript
-
-```
-
-
-
-Disjunction creates a union meta type that works like a union type. Specifically, 
-
-
-
-
-
-## Meta type
-
-
-
-I decided to add this part here, because otherwise meta object inference and checking might not make sense. Feel free to skip it if you’re fine with takin
-
-Consider a meta type such as the following:
-
-
-
-
-
-
-
-## Referencing 
-
-There are a few other things.
-
-### 
-
-
-
-These constraints are allowed to reference other meta members or the member being constrained, in the same way type parameters might do so:I said earlier that **a meta type is the type of a meta object**. 
-
-The **meta object ⇔ meta type** relationship is the same as the **object ⇔ object type** relationship. **That is, meta objects are the instances of meta types.** Meta types can also be regarded as a structural template that some meta objects match and others don’t.
-
-
-
-1. Meta annotations, used for meta object members.
-2. Type constraints, used for type members.
-
-This is because they are one level above the normal type system
-
-Like everything else, meta types are structural. The core structure of a meta type describes the meta objects which are its instances. This is analogous to how object types describe object instances. 
-
-Because meta types are one level above the normal type system, they can use two different kinds of constraints. 
-
-Object types describe object values using type annotations, but meta types can have several kinds of members.
-
-1. **Meta object members**, also called **meta members**, which use **meta annotations**.
-2. **Type members**, which use **type constraints**.
-
-
-
-**The constraint of a member is part of its declaration**, and it’s required. This constraint must specify, implicitly or explicitly, whether the member is a meta object or a type.
-
-Specifically, meta types support the following constraints:
-
-1. **Subtype constraints**, e.g. `Member extends string`
-
-2. **Meta annotations**, e.g. `Member: MetaType`
-
-3. **Equivalence constraints**, e.g. `Member := number`
-
-4. However, **meta types possess another form of structure altogether.**  This structure is called **implicit structure**, and its existence is only possible because the instances of meta types are still part of the type system.
-
-   Instead of being constraints on the structure of a meta object, implicit structure expands a meta object conforming to a meta type with additional structure, like additional types, derived from the structure it already has.
-
-   As an analogy, consider Scala’s trait system, which can extend a type with additional members. The main difference is that **the mechanism is one level above Scala’s trait system.** Where Scala’s traits extend classes with extra functionality, implicit structure extends meta objects with extra type definitions.
-
-   While it may sound weirdly abstract, actually implicit structure addresses multiple feature requests and without it, inference would probably be impossible in many cases.
-
-   This means that working with meta types can, potentially, be an additive process. 

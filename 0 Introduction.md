@@ -1,55 +1,91 @@
-# 1 Introduction
+# Introduction
 
-**The meta type system is the result of applying TypeScript’s structural type system to itself**. It allows us to encapsulate complex generic signatures, construct powerful abstractions, and fulfill multiple seemingly disparate feature requests with a single (albeit pretty large) type system extension.
+It’s common for mainstream libraries to have unreadable generic signatures and instantiations. This is something we see everywhere — client or server-side, libraries for any purpose or goal. Here is an example from [zod](https://github.com/colinhacks/zod):
 
-Meta Types has two essential components:
+```typescript
+export class ZodObject<
+  T extends ZodRawShape,
+  UnknownKeys extends UnknownKeysParam = UnknownKeysParam,
+  Catchall extends ZodTypeAny = ZodTypeAny,
+  Output = objectOutputType<T, Catchall, UnknownKeys>,
+  Input = objectInputType<T, Catchall, UnknownKeys>
+> extends ZodType<Output, ZodObjectDef<T, UnknownKeys, Catchall>, Input> {
+    // ...
+}
+```
+
+Many other examples are referenced in #54254, each one more complicated than the next. Library developers have come up with various ways of managing these. One common method, usually called a “generic bag,” goes something like this:
+
+```typescript
+type GenericBag = {
+    TypeArg1: unknown
+    TypeArg2: unknown
+}
+
+declare function doSomething<Bag extends GenericBag>(arg1: Bag["TypeArg1"], arg2: Bag["TypeArg2"]);
+```
+
+While I’ve always liked the direction of this method, it’s still a hack — and one that often fails to work, judging by the fact that they’re not a universal construction. 
+
+I can attest to that. I’ve used them in the past, and to this day the way these things behave is still incomprehensible to me – in every instance, finding a configuration that worked was a process of gruesome trial and error, and when I had to deal with several at the same time I often gave up.
+
+Often, for reasons that were unclear to me, I ended up having to declare utility types such as:
+
+```typescript
+type GetTypeArg1<Bag extends GenericBag> = Bag extends { TypeArg1: infer TypeArg1 } ? TypeArg1 : never
+```
+
+Which, through the problems associated with inferred types, added new complexity to something that was already bordering on the unmanageable.
+
+But let’s say you successfully finish your construction, add the necessary unit tests, and deploy your package. The story is still far from over — because now, should users of your package step out of line, your monstrous generic creations are thrust upon them as terrifying error messages that haunt their waking dreams and nightmares alike.
+
+## Not an easy problem to solve
+
+This isn’t an easy problem to solve — if it was, the solution would already be here, if only based on the demand for it.
+
+The problem, as I see it, is this:
+
+> TypeScript’s structural nature is ill-suited to work with type parameters, which don’t actually correspond to any structure at all, but instead are treated almost like rewriting rules that exist outside of the type system.
+
+This same issue affects most proposed features dealing with type parameters in some way. My original interaction with it was through the lens of [higher-kinded types](https://github.com/microsoft/TypeScript/issues/1213), which have been suggested since the language’s inception. I even participated in some of the discussions, [back in the day](https://github.com/microsoft/TypeScript/issues/1213#issuecomment-372112121). So I’ve actually been chewing on this for a few years now.
+
+I opened an issue about this topic a few weeks ago. It was focused on HKTs (#55280), but I’ve since changed my thinking. What I thought was a cool way of implementing HKTs was actually something more – a way for TypeScript to reason about its generics system in general.
+
+**In fact, this proposal doesn’t express HKTs**, and instead views them as an extension that could be developed in the future. This is mainly because I feel things are complicated enough as it is.
+
+Anyway, that’s enough for the intro.
+
+# The Meta Type System
+
+**The meta type system is the result of applying TypeScript’s structural type system to itself**. It allows us to encapsulate complex generic signatures, construct powerful abstractions, fulfill multiple feature requests with a single type system extension.
+
+The meta type system has two components:
 
 * The **meta object**, a type-level structure that embeds types like normal objects embed values.
 * The **meta type**, which is the type of a meta object. 
 
-The meta type system is a unique extension designed specifically for TypeScript, and based on existing TypeScript concepts, rules, and conventions. While it resembles features found in other languages, like Haskell and Scala, it’s very much its own thing, and it wouldn’t make sense anywhere else
+The meta type system is a unique extension designed specifically for TypeScript, and based on existing TypeScript concepts, rules, and conventions. While it resembles features found in other languages, like Haskell and Scala, it’s very much its own thing, and it wouldn’t make sense anywhere else.
 
-However, that doesn’t mean we can’t make some analogies, which I’ll sprinkle throughout the text. Here is the first one:
+However, that doesn’t mean we can’t make some analogies. Here is the first one:
 
-> The meta object/meta type duality is like Haskell’s higher-kinded types or type constructors. Where Haskell uses the language of functions to talk about types, here we use the language of objects to do so.
-
-Almost everything in this proposal is derived from my original [not-quite proposal](https://github.com/microsoft/TypeScript/issues/55280), which focused on HKTs. However, **this proposal doesn’t include HKTs.** I just really feel the feature is complex enough as it is. Instead, I’m going to view HKTs as a natural extension of this proposal, which might be developed in the future.
+> The meta type system is like Haskell’s higher-kinded types or type constructors. Where Haskell uses the language of functions to talk about types, here we use the language of objects to do so.
 
 ## Use cases
 
-Meta Types is a major extension to the type system, and one that allows us to express concepts that were impossible to express before. Through this ability we can address a lot of different feature requests, as well as some core issues related to type parameters.
+Meta Types is a major extension to the type system, and one that allows us to express concepts that were hard to express before. As such it addresses lots of different feature requests.
 
-***This is an incomplete list.*** I found many of these by just going through feature requests and seeing where Meta Types would be applicable. I’m sure there are even more issues that I missed.
+***This is an incomplete list.*** Meta types is a complex and powerful system, and the way in which it can be used isn’t obvious. So there could be tons of other use cases out there.
 
-* **Named type parameters** – Directly.
-  * https://github.com/microsoft/TypeScript/issues/54254
-* **Partial generic parameterization and inference** – In principle, this is implemented as meta object inference. The degree to which it will happen in practice depends on implementation challenges.
-  * https://github.com/microsoft/TypeScript/issues/10571
-  * https://github.com/microsoft/TypeScript/issues/26242
-* **HKTs** – via said extension
-  * https://github.com/microsoft/TypeScript/issues/1213
-* **Type display for generic types** – Meta Types allow you to use more declared elements in a generic signature, which improves type display.
-  * https://github.com/microsoft/TypeScript/issues/14662
-* **Simplifies generic signatures** – Meta Types encapsulate complex type parameter constraints into their own thing, which simplifies the signatures of generic types.
-  * https://github.com/microsoft/TypeScript/issues/42388 – Accomplishes goal of reorganizing type constraints, as well as a variation on “scoped aliases”.
-* **Self-referential types and constraints** – Type members of meta types get a self-reference token. With the HKT extension, said token is generic.
-  * https://github.com/microsoft/TypeScript/issues/38038 
-  * https://github.com/microsoft/TypeScript/issues/6223 – You get a generic self-reference token that you can instantiate with different types.
-* **Associated types** – Given a type `A` find one or more associated types `A₁, ⋯, Aₙ`, without any kind of map that describes the association. Achieved by meta types that have `=` constraints. They let you work with entire ecosystems of related types.
-  * https://github.com/microsoft/TypeScript/issues/9889
-  * https://github.com/microsoft/TypeScript/issues/1758
-* **Concrete types** – Can be achieved if you can express a type that proves the given relation. Might be inconvinient of meta object inference doesn’t work.
-  * https://github.com/microsoft/TypeScript/issues/28430
-* https://github.com/microsoft/TypeScript/issues/30994 – Namespaces make more sense now!
+| Req    | Name                             | How it’s addressed                                           |
+| ------ | -------------------------------- | ------------------------------------------------------------ |
+| #54254 | Named type parameters            | Directly, there is also a shorthand                          |
+| #26242 | Partial generic parameterization | Meta object inference                                        |
+| #17588 | Associated types                 | Via implicit structure, but classes don’t support it directly |
+| #14662 | Generic type display             | Generic signatures can be presented as declared entities     |
+| #42388 | `where` clause                   | Solves the same issues, including “scoped aliases”           |
+| #39526 | Overloading generic signatures   | Disjunction meta types                                       |
+| #54157 | Same class, different generics   | Disjunction meta types + implicit structure                  |
+| #1213  | HKTs                             | Via HKT extension                                            |
 
-## Design benefits
+Practical examples can be found at the end of this issue.
 
-Meta Types introduce a whole new level to the type system. This may sound like overcomplicating things, but actually it has lots of benefits from a design point of view.
-
-It’s a way of developing TypeScript’s type system horizontally, without affecting the assignability relation too much. We’re defining machinery that only affects the type world through type parameters, rather than introducing totally new type constructions that can must be useable in all contexts.
-
-As a consequence, it becomes natural to gradually develop the interaction of Meta Types with specific TypeScript features, instead of having to define all interactions when we introduce the system – as we would if we were introducing a regular type. 
-
-As a specific example, we’re just not going to describe what happens if you stick meta types or meta objects in conditional types – it would simply be an error. This is legitimate because meta types are special and different so you can’t just stick them wherever you want. Every such interaction could be phrased as a new feature, rather than something users just expect to work.
-
-Meta Types can fully integrate namespaces into the type system . We’ll see how that works later.

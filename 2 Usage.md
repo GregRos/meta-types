@@ -1,4 +1,28 @@
-# Usage
+# Other feature requests
+
+So due to the large number of
+
+## Named/keyed type parameters
+
+* https://github.com/microsoft/TypeScript/issues/54254
+* https://github.com/microsoft/TypeScript/issues/38913
+* https://github.com/microsoft/TypeScript/pull/23696
+
+Meta types let you express this directly.
+
+## Organizing generic signatures
+
+* https://github.com/microsoft/TypeScript/issues/42388
+
+Address directly.
+
+This is one of the original motivating examples. Something like this has been attempted at various points in TypeScript’s history
+
+In truly meta fashion, I’m going to show how other feature requests can be expressed using meta types, which automatically covers their use cases as well.
+
+
+
+
 
 While meta types are super cool, it might be hard to see how they can be integrated into normal TypeScript code. 
 
